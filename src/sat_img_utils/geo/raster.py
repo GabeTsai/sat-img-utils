@@ -3,10 +3,14 @@
 import logging
 import gc
 from typing import Tuple
+from pyproj import Transformer
+import geopandas as gpd
 import rasterio
+from rasterio.features import rasterize
 from rasterio.windows import Window, from_bounds
-from rasterio.warp import reproject, Resampling, transform_bounds
+from rasterio.warp import reproject, Resampling, transform_bounds, transform
 import numpy as np
+from shapely.geometry import box
 
 from sat_img_utils.configs import constants
 from sat_img_utils.core import get_memory_mb
@@ -127,3 +131,74 @@ def reproject_raster_to_match(
     logging.info(f"After reprojection - Memory: {get_memory_mb():.0f}MB")
     return destination
 
+def window_center_longlat(
+    ds: rasterio.io.DatasetReader,
+    window: Window,
+    out_epsg: int = 4326,
+) -> Tuple[float, float]:
+    """
+    Returns (long, lat) of the window center. Uses a cached Transformer for performance.
+    """
+    center_row = window.row_off + window.height / 2.0
+    center_col = window.col_off + window.width / 2.0
+
+    x_center, y_center = rasterio.transform.xy(ds.transform, center_row, center_col, offset="center")
+
+    if ds.crs is None or ds.crs.to_epsg() == out_epsg:
+        return float(x_center), float(y_center)
+
+    transformer = Transformer.from_crs(ds.crs, f"EPSG:{out_epsg}", always_xy=True)
+    long, lat = transformer.transform(x_center, y_center)
+    return float(long), float(lat)
+
+def drop_null_empty_invalid(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:   
+    gdf = gdf[gdf.geometry.notnull()]
+    gdf = gdf[~gdf.geometry.is_empty]
+    gdf = gdf[gdf.is_valid]
+    return gdf
+
+def clean_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Apply zero-width buffer to clean invalid geometries in a GeoDataFrame.
+    """
+    gdf["geometry"] = gdf["geometry"].buffer(0)
+    return drop_null_empty_invalid(gdf)
+
+def rasterize_gdf_to_mask(gdf, sat_tile):
+    """
+    Rasterize binary polygon gdf for specific satellite image tile
+
+    Args:
+      gdf: GeoDataFrame of land polygons
+      sat_tile: rasterio dataset of satellite tile
+    Returns:
+      mask: 2D numpy uint8 array mask where land = 1, water = 0
+    """
+
+    # Reproject land polygons to satellite CRS
+    gdf_in_sat_crs = gdf.to_crs(sat_tile.crs)
+
+    # Drop null/empty/invalid after reprojection
+    gdf_in_sat_crs = drop_null_empty_invalid(gdf_in_sat_crs)
+    # Clip to satellite image tile bounds (in satellite image CRS)
+    b = sat_tile.bounds
+    tile_geom = box(b.left, b.bottom, b.right, b.top)
+    gdf_clip = gdf_in_sat_crs[gdf_in_sat_crs.intersects(tile_geom)]
+    
+    # No land intersecting tile
+    if gdf_clip.empty:
+        return np.zeros((sat_tile.height, sat_tile.width), dtype=np.uint8)
+
+    gdf_clip = gdf_clip.intersection(tile_geom)
+
+    gdf_clip = drop_null_empty_invalid(gdf_clip)
+
+    land_mask = rasterize(
+        ((geom, 1) for geom in gdf_clip.geometry),
+        out_shape=(sat_tile.height, sat_tile.width),
+        transform=sat_tile.transform,
+        fill=0,
+        dtype="uint8"
+    )
+
+    return land_mask

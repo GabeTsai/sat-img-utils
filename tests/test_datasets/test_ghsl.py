@@ -19,4 +19,5 @@ if __name__ == "__main__":
     sar_path = "../../test_data/CAPELLA_C05_SM_GEO_HH_20211226193545_20211226193549_patch_11264_8192.tif"
     
     with rasterio.open(ghsl_path) as ghsl_dataset, rasterio.open(sar_path) as sar_dataset:
+        print(sar_dataset.nodata)
         test_detect_buildings(ghsl_dataset, sar_dataset)

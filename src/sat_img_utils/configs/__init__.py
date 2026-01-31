@@ -1,4 +1,5 @@
 """Configuration constants for satellite image processing."""
+from enum import Enum
 
 from .constants import (
     BUILDINGS_THRESHOLD,
