@@ -11,6 +11,7 @@ from rasterio.windows import Window, from_bounds
 from rasterio.warp import reproject, Resampling, transform_bounds, transform
 import numpy as np
 from shapely.geometry import box
+from shapely.ops import unary_union
 
 from sat_img_utils.configs import constants
 from sat_img_utils.core import get_memory_mb
@@ -192,11 +193,27 @@ def rasterize_gdf_to_mask(gdf, sat_tile):
 
     # Drop null/empty/invalid after reprojection
     gdf_in_sat_crs = drop_null_empty_invalid(gdf_in_sat_crs)
+
     # Clip to satellite image tile bounds (in satellite image CRS)
     b = sat_tile.bounds
     tile_geom = box(b.left, b.bottom, b.right, b.top)
-    gdf_clip = gdf_in_sat_crs[gdf_in_sat_crs.intersects(tile_geom)]
-    
+
+    # Keep this conservative: we only use sindex to get candidate rows by bbox,
+    # then still run your exact intersects() filter afterward.
+    gdf_prefilter = gdf_in_sat_crs
+    try:
+        sidx = gdf_in_sat_crs.sindex  # may build lazily
+        cand_idx = list(sidx.intersection(tile_geom.bounds))
+        if len(cand_idx) == 0:
+            # No candidates intersect bounding boxes => definitely no geometry intersects tile
+            return np.zeros((sat_tile.height, sat_tile.width), dtype=np.uint8)
+        gdf_prefilter = gdf_in_sat_crs.iloc[cand_idx]
+    except Exception:
+        # If spatial index is unavailable for any reason, fall back to original behavior.
+        gdf_prefilter = gdf_in_sat_crs
+
+    gdf_clip = gdf_prefilter[gdf_prefilter.intersects(tile_geom)]
+
     # No land intersecting tile
     if gdf_clip.empty:
         return np.zeros((sat_tile.height, sat_tile.width), dtype=np.uint8)
@@ -214,3 +231,39 @@ def rasterize_gdf_to_mask(gdf, sat_tile):
     )
 
     return land_mask
+
+def get_aoi_from_bboxes(
+    bboxes: list,
+    reproj_crs: int = 4326,
+    buffer_m: float = 2000,
+) -> gpd.GeoSeries:
+    """
+    Given a list of bounding boxes (shapely geometries in reproj_crs),
+    return a unified AOI GeoSeries, buffered in meters safely.
+    """
+    aoi_geom = unary_union(bboxes)
+    aoi_geom = aoi_geom.buffer(0)
+    aoi = gpd.GeoSeries([aoi_geom], crs=reproj_crs)
+
+    if buffer_m > 0:
+        meter_crs = aoi.estimate_utm_crs()
+        if meter_crs is None:
+            raise ValueError("Could not estimate a projected CRS for AOI buffering")
+        aoi_meter = aoi.to_crs(meter_crs)
+        aoi_meter = aoi_meter.buffer(buffer_m)
+        aoi = aoi_meter.to_crs(reproj_crs)
+    return aoi
+
+def convert_bbox_crs(bbox: box, src_crs: int, dst_crs: int):
+    """
+    Convert a bounding box from source CRS to destination CRS.
+
+    Args:
+      bbox: shapely box geometry in source CRS
+      src_crs: EPSG code of source CRS
+      dst_crs: EPSG code of destination CRS
+    Returns:
+      converted_bbox: shapely box geometry in destination CRS
+    """
+    bbox_wgs84 = gpd.GeoSeries([bbox], crs=src_crs).to_crs(dst_crs).iloc[0]
+    return bbox_wgs84
