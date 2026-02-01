@@ -22,18 +22,11 @@ def min_land_fraction_filter(patch: np.ndarray, ctx: Context) -> bool:
 def min_land_fraction_filter_random(patch: np.ndarray, ctx: Context) -> bool:
     p = ctx.min_land_fraction_filter_random
     lf = _land_fraction_check(patch, ctx, p)
-    print("land fraction:", lf)
     if lf >= p.min_land_threshold:
-        print("keeping patch", ctx.patch.i, ctx.patch.j)
         return True
     else:   # discard below threshold images with probability discard_prob
-        res = np.random.rand() > p.discard_prob
-        if res:
-            print(f"keeping patch {ctx.patch.i},{ctx.patch.j} with prob: {p.discard_prob}")
-        else:
-            print(f"discarding patch {ctx.patch.i},{ctx.patch.j} with prob: {p.discard_prob}")
-        return res
-
+        return np.random.rand() > p.discard_prob
+        
 def threshold_fraction_filter(
     patch: np.ndarray,
     ctx: Context,

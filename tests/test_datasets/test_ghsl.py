@@ -16,7 +16,7 @@ def test_detect_buildings(ghsl_dataset: rasterio.DatasetReader, sar_dataset: ras
 
 if __name__ == "__main__":
     ghsl_path = "../../test_data/GHS_BUILT_S_E2025_GLOBE_R2023A_4326_3ss_V1_0.tif"
-    sar_path = "../../test_data/CAPELLA_C05_SM_GEO_HH_20211226193545_20211226193549_patch_11264_8192.tif"
+    sar_path = "../../test_data/CAPELLA_C03_SP_GEO_HH_20211231164052_20211231164115.tif"
     
     with rasterio.open(ghsl_path) as ghsl_dataset, rasterio.open(sar_path) as sar_dataset:
         print(sar_dataset.nodata)

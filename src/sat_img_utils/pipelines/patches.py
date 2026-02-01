@@ -87,6 +87,7 @@ def cut_patches(
                 "transform": ds.window_transform(window),
                 "long_center": long_center,
                 "lat_center": lat_center,
+                "crs": cfg.crs,
             }
 
             context = Context(cfg=cfg, extra=patch_extra_ctx)
@@ -114,7 +115,7 @@ def cut_patches(
                     break
             if skip:
                 continue
-
+            
             writer_fn(patch, context)
             metadata.append(metadata_fn(context))
 

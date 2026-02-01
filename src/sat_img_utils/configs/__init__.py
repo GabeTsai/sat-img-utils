@@ -2,10 +2,11 @@
 from enum import Enum
 
 from .constants import (
-    BUILDINGS_THRESHOLD,
     MAX_WINDOW_SIZE_GB,
     CHUNK_HEIGHT,
 )
+
+from .ds_constants import *
 
 __all__ = [
     "BUILDINGS_THRESHOLD",

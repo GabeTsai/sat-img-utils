@@ -96,15 +96,22 @@ def calculate_threshold_fraction(
     nodata: Optional[float],
     *,
     greater: bool = True,
+    strict: bool = False,
 ) -> float:
     """
     Generic: fraction of valid pixels satisfying data >= filter_value (or <= filter_value).
     """
     valid = np.ones(data.shape, dtype=bool) if nodata is None else (data != nodata)
     if greater:
-        satisfied = data >= filter_value   # NOTE: >= not >
+        if strict:
+            satisfied = data > filter_value
+        else:
+            satisfied = data >= filter_value   # NOTE: >= not >
     else:
-        satisfied = data <= filter_value
+        if strict:
+            satisfied = data < filter_value
+        else:
+            satisfied = data <= filter_value
 
     valid_count = int(valid.sum())
     if valid_count == 0:

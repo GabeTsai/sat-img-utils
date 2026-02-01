@@ -1,0 +1,9 @@
+{
+  "stac_start_url": "https://capella-open-data.s3.us-west-2.amazonaws.com/stac/capella-open-data-ieee-data-contest/collection.json",
+  "tiles_file": "tiles.txt",
+  "tiles_count": 1078,
+  "stac_items_found": 1582,
+  "overlap_count": 0,
+  "overlaps": [],
+  "overlap_item_ids": {}
+}

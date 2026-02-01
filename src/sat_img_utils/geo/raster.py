@@ -164,6 +164,18 @@ def clean_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     gdf["geometry"] = gdf["geometry"].buffer(0)
     return drop_null_empty_invalid(gdf)
 
+def get_gdf(gdf_path: str) -> gpd.GeoDataFrame:
+    """
+    Read a GeoDataFrame from a file and clean it by dropping null, empty, and invalid geometries.
+    
+    Args:
+        gdf_path: Path to the GeoDataFrame file (e.g., shapefile, GeoJSON)
+    """
+    gdf = gpd.read_file(gdf_path)
+    gdf = drop_null_empty_invalid(gdf)
+    gdf = clean_gdf(gdf)
+    return gdf
+
 def rasterize_gdf_to_mask(gdf, sat_tile):
     """
     Rasterize binary polygon gdf for specific satellite image tile

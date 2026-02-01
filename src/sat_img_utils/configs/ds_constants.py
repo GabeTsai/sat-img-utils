@@ -1,4 +1,4 @@
-# CAPELLA CONSTANTS
+# CAPELLA CONSTANTS --------------------------------------------------------
 
 # Polarizations
 # define an enumeration for polarizations
@@ -29,6 +29,17 @@ CAPELLA_EXTRA_CTX = {
     "min_land_fraction_filter_random": {
         "land_mask": None,  # to be set per-tile
         "min_land_threshold": 0.1,
-        "discard_prob": 0.9,
+        "discard_prob": 0.95,
     } 
 }
+
+CAPELLA_RES_THRESHOLD_M = 1 # max resolution threshold
+CAPELLA_YEARS = [2020, 2021, 2022, 2023, 2024, 2025]
+CAPELLA_MIN_RES = 1.0 # we want sub meter resolution
+CAPELLA_DEFAULT_OUT_CRS = 4326 # EPSG:4326
+
+# GHSL CONSTANTS --------------------------------------------------------
+
+# Building detection thresholds
+GHSL_BUILDINGS_THRESHOLD = 0  # Threshold for GHSL building detection
+GHSL_MIN_BUILDING_COVG = 0.30

@@ -1,15 +1,16 @@
 import rasterio
 import numpy as np
-from sat_img_utils.configs.datasets import CAPELLA_BANDS, CAPELLA_EXTRA_CTX, CapellaPercentValue, CapellaPolarization
+from sat_img_utils.configs.ds_constants import CAPELLA_BANDS, CAPELLA_EXTRA_CTX, CapellaPercentValue, CapellaPolarization
 from sat_img_utils.core.filters import min_land_fraction_filter_random, threshold_fraction_filter_eq
+from sat_img_utils.pipelines.config import PatchIterPipelineConfig
 from sat_img_utils.pipelines.context import Context
 from sat_img_utils.core.transforms import sar_up_contrast_convert_to_uint8
 
-from sat_img_utils.pipelines.patches import cut_patches
-from sat_img_utils.pipelines.config import PatchIterPipelineConfig
+from sat_img_utils.pipelines.patches import cut_patches, init_patch_config
 from sat_img_utils.geo.metadata import default_metadata_fn
 
 from pathlib import Path
+import logging
 
 def save_capella_patch(patch, context: Context):
     """
@@ -34,7 +35,7 @@ def save_capella_patch(patch, context: Context):
             dst.write(patch, 1)
         return 1
     except Exception as e:
-        print(f"Error saving patch {context.img_name}_patch_{context.patch.i}_{context.patch.j}.tif: {e}")
+        logging.error(f"Error saving patch {context.img_name}_patch_{context.patch.i}_{context.patch.j}.tif: {e}")
         return 0
 
 def capella_sar_transform_to_uint8(
@@ -64,8 +65,8 @@ def init_capella_patch_config(
     out_dir: str,
     img_name: str,
     nodata: int = 0,
-):
-    return PatchIterPipelineConfig(
+) -> PatchIterPipelineConfig:
+    return init_patch_config(
         patch_size=patch_size,
         patch_dtype=np.uint8,
         out_dir=out_dir,
@@ -82,7 +83,7 @@ def process_capella_sar_tile(
     land_mask: np.ndarray = None,
     patch_size: int = 512,
     nodata: int = 0,
-):
+) -> list[dict]:
     
     img_name = Path(ds.name).stem
 
@@ -93,7 +94,7 @@ def process_capella_sar_tile(
         nodata=nodata,
     )
 
-    extra_ctx = CAPELLA_EXTRA_CTX 
+    extra_ctx = CAPELLA_EXTRA_CTX.copy()
     extra_ctx["min_land_fraction_filter_random"]["land_mask"] = land_mask
 
     metadata = cut_patches(
@@ -111,3 +112,4 @@ def process_capella_sar_tile(
         extra_ctx=extra_ctx,
     )
     return metadata    
+

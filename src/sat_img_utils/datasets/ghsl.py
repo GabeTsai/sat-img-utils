@@ -6,7 +6,7 @@ import rasterio
 from rasterio.windows import Window, from_bounds
 from rasterio.warp import reproject, Resampling, transform_bounds
 
-from sat_img_utils.configs import constants
+from sat_img_utils.configs import ds_constants
 from sat_img_utils.core import get_memory_mb
 from sat_img_utils.core.filters import calculate_threshold_fraction
 from sat_img_utils.geo import read_raster_window_chunked, reproject_raster_to_match
@@ -14,7 +14,7 @@ from sat_img_utils.geo import read_raster_window_chunked, reproject_raster_to_ma
 def detect_buildings(
     ghsl: rasterio.DatasetReader,
     sar: rasterio.DatasetReader,
-    threshold: float = None
+    filter_value: float = None
 ) -> float:
     """
     Detect buildings in a SAR image using GHSL (Global Human Settlement Layer) data.
@@ -24,13 +24,13 @@ def detect_buildings(
     Args:
         ghsl: Open GHSL raster dataset
         sar: Open SAR raster dataset to match geometry
-        threshold: Building detection threshold (default: from constants.BUILDINGS_THRESHOLD)
+        filter_value: Building detection threshold (default: from datasets.GHSL_BUILDINGS_THRESHOLD)
     
     Returns:
         float: Fraction of pixels indicating buildings (0.0 to 1.0)
     """
-    if threshold is None:
-        threshold = constants.BUILDINGS_THRESHOLD
+    if filter_value is None:
+        filter_value = ds_constants.GHSL_BUILDINGS_THRESHOLD
     
     wgs84_bounds = transform_bounds(sar.crs, ghsl.crs, *sar.bounds)
     logging.info(f"Starting GHSL processing - Memory: {get_memory_mb():.0f}MB")
@@ -57,8 +57,10 @@ def detect_buildings(
     
     building_fraction = calculate_threshold_fraction(
         data=ghsl_resampled,
-        threshold=threshold,
-        nodata=ghsl.nodata
+        filter_value=filter_value,
+        nodata=ghsl.nodata,
+        greater=True,
+        strict=True
     )
     
     del ghsl_resampled
