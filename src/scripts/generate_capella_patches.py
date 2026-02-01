@@ -122,12 +122,12 @@ def process_sar(capella_dir,
         merged.to_parquet(f"{patch_metadata_path}/patch_metadata_all.parquet", index=False)
         logging.info(f'Merged metadata saved to {patch_metadata_path}/patch_metadata_all.parquet')
 
-def get_capella_aoi(capella_dir, out_aoi_path=None,
+def get_capella_aoi(capella_dir, out_aoi_path,
                     flat=False) -> gpd.GeoSeries:
     """
-    Get the AOI for Capella SAR dataset based 
+    Get the AOI for Capella SAR dataset based on bounding boxes
     """
-
+    make_dirs_if_not_exists(os.path.dirname(out_aoi_path))
     bboxes = []
     if flat:
         dir_names = os.listdir(capella_dir)

@@ -11,9 +11,9 @@ requires-python = ">=3.10"
 dependencies = [
     "rasterio",
     "numpy",
-    "geopandas"
-    "shapely"
-    "pyproj"
+    "geopandas",
+    "shapely",
+    "pyproj",
     "psutil",
 ]
 
