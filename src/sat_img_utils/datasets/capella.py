@@ -1,7 +1,7 @@
 import rasterio
 import numpy as np
 from sat_img_utils.configs.ds_constants import CAPELLA_BANDS, CAPELLA_EXTRA_CTX, CapellaPercentValue, CapellaPolarization
-from sat_img_utils.core.filters import min_land_fraction_filter_random, threshold_fraction_filter_eq
+from sat_img_utils.core.filters import geq, min_land_fraction_filter_random, threshold_fraction_filter_eq
 from sat_img_utils.pipelines.config import PatchIterPipelineConfig
 from sat_img_utils.pipelines.context import Context
 from sat_img_utils.core.transforms import sar_up_contrast_convert_to_uint8
@@ -112,4 +112,38 @@ def process_capella_sar_tile(
         extra_ctx=extra_ctx,
     )
     return metadata    
+
+# def process_capella_sar_tile(
+#     ds: rasterio.io.DatasetReader,
+#     out_dir: str,
+#     patch_size: int = 512,
+#     nodata: int = 0,
+# ) -> list[dict]:
+    
+#     img_name = Path(ds.name).stem
+
+#     cfg = init_capella_patch_config(
+#         patch_size=patch_size,
+#         out_dir=out_dir,
+#         img_name=img_name,
+#         nodata=nodata,
+#     )
+
+#     extra_ctx = CAPELLA_EXTRA_CTX.copy()
+
+#     metadata = cut_patches(
+#         ds=ds,
+#         img_name=img_name,
+#         out_dir=out_dir,
+#         cfg=cfg,
+#         transform=capella_sar_transform_to_uint8,
+#         filters_before_transform=[
+#             geq,
+#             threshold_fraction_filter_eq,
+#         ],
+#         writer_fn=save_capella_patch,
+#         metadata_fn=default_metadata_fn,
+#         extra_ctx=extra_ctx,
+#     )
+#     return metadata    
 

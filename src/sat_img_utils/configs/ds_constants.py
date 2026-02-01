@@ -29,7 +29,7 @@ CAPELLA_EXTRA_CTX = {
     "min_land_fraction_filter_random": {
         "land_mask": None,  # to be set per-tile
         "min_land_threshold": 0.1,
-        "discard_prob": 0.95,
+        "discard_prob": 0.98,
     } 
 }
 

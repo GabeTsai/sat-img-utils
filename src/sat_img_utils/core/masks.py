@@ -161,5 +161,4 @@ def get_land_fraction(
             land_fraction = 0.0
         else:
             land_fraction = (land_patch & valid_land).sum() / valid_count
-
     return land_fraction

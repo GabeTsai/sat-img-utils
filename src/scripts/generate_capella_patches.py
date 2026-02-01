@@ -9,7 +9,7 @@ import pandas as pd
 from sat_img_utils.core.utils import get_memory_mb, make_dirs_if_not_exists, make_dirs_if_not_exists
 from sat_img_utils.geo.metadata import list_dict_to_parquet
 from sat_img_utils.datasets.ghsl import detect_buildings
-from sat_img_utils.datasets.osm_land_poly import osm_rasterize_sat_land_mask
+from sat_img_utils.datasets.osm_land_poly import LandMaskVRT, osm_rasterize_sat_land_mask
 from sat_img_utils.datasets.capella import process_capella_sar_tile
 from sat_img_utils.geo.raster import convert_bbox_crs, get_aoi_from_bboxes, get_gdf
 from sat_img_utils.configs import ds_constants
@@ -22,7 +22,7 @@ import gc
 import logging
 import time
 
-def process_sar_single_image(sar_path, ghsl, land_global, out_dir,
+def process_sar_single_image(sar_path, ghsl, all_landmask, out_dir,
                              patch_size, metadata_out_dir, crs):
     logging.info(f"\nProcessing {sar_path}")
     logging.info(f"Initial memory: {get_memory_mb():.0f}MB")
@@ -37,7 +37,7 @@ def process_sar_single_image(sar_path, ghsl, land_global, out_dir,
             
             if building_ratio >= ds_constants.GHSL_MIN_BUILDING_COVG:
                 start = time.time()
-                land_mask = osm_rasterize_sat_land_mask(land_global, sar)
+                land_mask = all_landmask.get_mask_for_tile(sar)
                 end = time.time()
                 logging.info(f"OSM land rasterization time for {Path(sar_path).stem}: {end - start:.2f} seconds")
                 metadata = process_capella_sar_tile(
@@ -66,7 +66,7 @@ def process_sar_single_image(sar_path, ghsl, land_global, out_dir,
 def process_sar(capella_dir, 
                 target_dir, 
                 ghsl_path, 
-                osm_land_poly_path, 
+                osm_land_vrt_path, 
                 patch_size, 
                 crs=4326, 
                 flat=False):
@@ -83,7 +83,7 @@ def process_sar(capella_dir,
     patch_metadata_path = f'{target_dir}/patch_metadata'
     make_dirs_if_not_exists(patch_metadata_path)
 
-    land_global = get_gdf(osm_land_poly_path)
+    all_landmask = LandMaskVRT(osm_land_vrt_path)
 
     total_num_patches = 0
     logging.info(f'Processing SAR images in {capella_dir}')
@@ -95,7 +95,7 @@ def process_sar(capella_dir,
                     sar_path = f'{capella_dir}/{dir_name}/{dir_name}.tif'
                     logging.info(f'Processing SAR image: {sar_path}')
                     total_num_patches += process_sar_single_image(
-                        sar_path, ghsl, land_global, new_target_dir, patch_size, patch_metadata_path, crs=crs
+                        sar_path, ghsl, all_landmask, new_target_dir, patch_size, patch_metadata_path, crs=crs
                     )
         else:
             for year in ds_constants.CAPELLA_YEARS:
@@ -108,7 +108,7 @@ def process_sar(capella_dir,
                     if 'geo' in dir_name.lower() and 'capella' in dir_name.lower():
                         sar_path = f'{year_dir}/{dir_name}/{dir_name}.tif'
                         total_num_patches += process_sar_single_image(
-                            sar_path, ghsl, land_global, new_target_dir, patch_size, patch_metadata_path, crs=crs
+                            sar_path, ghsl, all_landmask, new_target_dir, patch_size, patch_metadata_path, crs=crs
                         )
 
     logging.info(f'Total patches saved: {total_num_patches}')
@@ -155,7 +155,7 @@ def get_capella_aoi(capella_dir, out_aoi_path,
     logging.info(f"AOI bounds: {aoi.total_bounds}")
     if out_aoi_path is not None:
         aoi.to_file(out_aoi_path, driver="GeoJSON")
-        print(f"AOI saved to {out_aoi_path}")
+        logging.info(f"AOI saved to {out_aoi_path}")
     return aoi
 
 if __name__ == "__main__":
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     gen_parser.add_argument('--capella_dir', required=True, help='Path to Capella SAR root directory')
     gen_parser.add_argument('--target_dir', required=True, help='Output directory for patches and metadata')
     gen_parser.add_argument('--ghsl_path', required=True, help='Path to GHSL raster file')
-    gen_parser.add_argument('--osm_land_poly_path', required=True, help='Path to OSM land polygons file')
+    gen_parser.add_argument('--osm_land_vrt_path', required=True, help='Path to OSM land polygons VRT file')
     gen_parser.add_argument('--patch_size', type=int, default=512, help='Size of the patches to generate')
     gen_parser.add_argument('--crs', type=int, default=ds_constants.CAPELLA_DEFAULT_OUT_CRS, help='Output CRS EPSG code for metadata')
     gen_parser.add_argument('--flat', action='store_true', help='Set if capella_dir is flat (no year subfolders)')
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     aoi_parser.add_argument('--log', action='store_true', help='Enable logging output')
 
     args = parser.parse_args()
-
+    
     if getattr(args, 'log', False):
         logging.basicConfig(level=logging.INFO)
 
@@ -203,7 +203,7 @@ if __name__ == "__main__":
             capella_dir=args.capella_dir,
             target_dir=args.target_dir,
             ghsl_path=args.ghsl_path,
-            osm_land_poly_path=args.osm_land_poly_path,
+            osm_land_vrt_path=args.osm_land_vrt_path,
             patch_size=args.patch_size,
             crs=args.crs,
             flat=args.flat

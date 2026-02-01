@@ -5,6 +5,12 @@ import numpy as np
 from sat_img_utils.pipelines.context import Context
 from sat_img_utils.core.masks import get_binary_mask_fraction, calculate_threshold_fraction, get_land_fraction, patch_value_fraction
 
+def geq(a, ctx: Context) -> bool:
+    return ctx.a >= ctx.geq.threshold
+
+def leq(a, ctx: Context) -> bool:
+    return ctx.a <= ctx.leq.threshold
+
 def _land_fraction_check(patch: np.ndarray, ctx: Context, params) -> float:
     return get_land_fraction(
         land_mask=params.land_mask,
