@@ -6,9 +6,13 @@ import rasterio
 import geopandas as gpd
 import pandas as pd
 
-from sat_img_utils.core.utils import get_memory_mb, make_dirs_if_not_exists, make_dirs_if_not_exists
+from sat_img_utils.core.utils import(
+    get_memory_mb,
+    get_sat_tile_memory, 
+    make_dirs_if_not_exists
+)
 from sat_img_utils.geo.metadata import list_dict_to_parquet
-from sat_img_utils.datasets.ghsl import detect_buildings
+from sat_img_utils.datasets.ghsl import detect_buildings, detect_buildings_chunked
 from sat_img_utils.datasets.osm_land_poly import LandMaskVRT, osm_rasterize_sat_land_mask
 from sat_img_utils.datasets.capella import process_capella_sar_tile
 from sat_img_utils.geo.raster import convert_bbox_crs, get_aoi_from_bboxes, get_gdf
@@ -32,7 +36,12 @@ def process_sar_single_image(sar_path, ghsl, all_landmask, out_dir,
         if max(sar.res[0], sar.res[1]) >= ds_constants.CAPELLA_RES_THRESHOLD_M:
             logging.info(f"Skipping {sar_path} due to low resolution: {sar.res}")
         else:
-            building_ratio = detect_buildings(ghsl, sar, filter_value = ds_constants.GHSL_BUILDINGS_THRESHOLD)
+            sar_tile_size_gb = get_sat_tile_memory(sar.height, sar.width, sar.dtypes[0], sar.count, pow=2)
+            if sar_tile_size_gb < ds_constants.MAX_SAR_TILE_MEMORY_GB:
+                logging.info(f"SAR tile size is manageable in memory.")
+                building_ratio = detect_buildings(ghsl, sar, filter_value = ds_constants.GHSL_BUILDINGS_THRESHOLD)
+            else:
+                building_ratio = detect_buildings_chunked(ghsl, sar, filter_value = ds_constants.GHSL_BUILDINGS_THRESHOLD)
             logging.info(f"Total building coverage for {Path(sar_path).stem}: {building_ratio}")
             
             if building_ratio >= ds_constants.GHSL_MIN_BUILDING_COVG:
@@ -149,7 +158,7 @@ def get_capella_aoi(capella_dir, out_aoi_path,
                     sar_path = f'{year_dir}/{dir_name}/{dir_name}.tif'
                     with rasterio.open(sar_path) as sar:
                         bboxes.append(convert_bbox_crs(box(*sar.bounds), sar.crs.to_epsg(), ds_constants.CAPELLA_DEFAULT_OUT_CRS))
-                        
+    
     aoi = get_aoi_from_bboxes(bboxes, reproj_crs=ds_constants.CAPELLA_DEFAULT_OUT_CRS)
     logging.info(f"AOI CRS: {aoi.crs}")
     logging.info(f"AOI bounds: {aoi.total_bounds}")

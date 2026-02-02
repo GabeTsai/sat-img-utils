@@ -37,6 +37,7 @@ CAPELLA_RES_THRESHOLD_M = 1 # max resolution threshold
 CAPELLA_YEARS = [2020, 2021, 2022, 2023, 2024, 2025]
 CAPELLA_MIN_RES = 1.0 # we want sub meter resolution
 CAPELLA_DEFAULT_OUT_CRS = 4326 # EPSG:4326
+MAX_SAR_TILE_MEMORY_GB = 2.0 # For job with 64 GB memory, conservative estimate of max
 
 # GHSL CONSTANTS --------------------------------------------------------
 

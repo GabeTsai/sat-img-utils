@@ -242,16 +242,23 @@ def get_aoi_from_bboxes(
     return a unified AOI GeoSeries, buffered in meters safely.
     """
     aoi_geom = unary_union(bboxes)
-    aoi_geom = aoi_geom.buffer(0)
+    if hasattr(aoi_geom, "buffer"):
+        aoi_geom = aoi_geom.buffer(0)
+
+    if aoi_geom.is_empty or (hasattr(aoi_geom, "is_valid") and not aoi_geom.is_valid):
+        raise ValueError("AOI geometry is empty or invalid after union. Check input bounding boxes.")
+
     aoi = gpd.GeoSeries([aoi_geom], crs=reproj_crs)
 
     if buffer_m > 0:
-        meter_crs = aoi.estimate_utm_crs()
-        if meter_crs is None:
-            raise ValueError("Could not estimate a projected CRS for AOI buffering")
+        meter_crs = "EPSG:3857"
         aoi_meter = aoi.to_crs(meter_crs)
         aoi_meter = aoi_meter.buffer(buffer_m)
+        aoi_meter = aoi_meter.buffer(0)
+        if aoi_meter.is_empty.any():
+            raise ValueError("AOI geometry became empty after buffering in EPSG:3857.")
         aoi = aoi_meter.to_crs(reproj_crs)
+
     return aoi
 
 def convert_bbox_crs(bbox: box, src_crs: int, dst_crs: int):
