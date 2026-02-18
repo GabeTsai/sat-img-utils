@@ -1,8 +1,11 @@
+import os
 import rasterio
 from shapely.geometry import Point
 import geopandas as gpd
+from sat_img_utils.core.utils import make_dirs_if_not_exists
 from sat_img_utils.pipelines.context import Context
 
+import logging
 
 def default_metadata_fn(ctx: Context):
     """

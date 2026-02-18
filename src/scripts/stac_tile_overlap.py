@@ -71,7 +71,7 @@ def _extract_capella_names_from_collection_links(collection: dict) -> Set[str]:
         if m:
             names.add(m.group(1))
         else:
-            # fallback: if weird formatting, try generic CAPELLA_... match
+            # if weird formatting, try generic CAPELLA_... match
             matches = CAPELLA_NAME_RE.findall(href)
             if matches:
                 names.add(matches[-1])

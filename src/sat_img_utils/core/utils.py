@@ -2,6 +2,7 @@
 import numpy as np
 import psutil
 import os
+from pathlib import Path
 
 def get_sat_tile_memory(height, width, dtype: np.dtype, n_channels, pow = 3) -> float:
     """
@@ -35,5 +36,4 @@ def make_dirs_if_not_exists(dir_path: str) -> None:
     Args:
         dir_path: Path to the directory to create
     """
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
+    Path(dir_path).mkdir(parents=True, exist_ok=True)
