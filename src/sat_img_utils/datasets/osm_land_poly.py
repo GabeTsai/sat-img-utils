@@ -5,6 +5,10 @@ from rasterio.warp import reproject, Resampling
 from sat_img_utils.geo.raster import drop_null_empty_invalid, clean_gdf, rasterize_gdf_to_mask
 
 class LandMaskVRT:
+    """
+    VRT file containing a single band of the land mask.
+    Allows for efficient rasterization of the land mask to a satellite tile.
+    """
     def __init__(self, vrt_path: str):
         self.ds = rasterio.open(vrt_path)
 

@@ -23,7 +23,7 @@ CAPELLA_EXTRA_CTX = {
     "threshold_fraction_filter_eq": { 
         "filter_value": 0.0,
         "nodata": None, 
-    "upper": True,
+        "upper": True,
         "fraction_value": 0.75
     }, 
     "min_land_fraction_filter_random": {
