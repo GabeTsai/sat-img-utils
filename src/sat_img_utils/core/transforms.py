@@ -23,6 +23,10 @@ def sar_up_contrast_convert_to_uint8_pval(
     scale_factor: float = 1.0,
     nodata: float = 0.0,
 ) -> np.ndarray:
+    """
+    See https://support.capellaspace.com/scaling-geo-images-in-qgis 
+    for more details on scaling process. 
+    """
     img = img_uint16.astype(np.float32)
     valid = get_valid_mask(img, nodata=nodata) & (img > 0) & (img * scale_factor > LOG_EPS)
 
