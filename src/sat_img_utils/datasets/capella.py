@@ -1,16 +1,40 @@
 import rasterio
 import numpy as np
-from sat_img_utils.configs.ds_constants import CAPELLA_BANDS, CAPELLA_EXTRA_CTX, CapellaPercentValue, CapellaPolarization
+from sat_img_utils.configs.ds_constants import (
+    CAPELLA_BANDS, 
+    CAPELLA_EXTRA_CTX, 
+    CAPELLA_OVERVIEW_TARGET_WIDTH, 
+    CapellaPercentValue, 
+    CapellaPolarization, 
+)
 from sat_img_utils.core.filters import geq, min_land_fraction_filter_random, threshold_fraction_filter_eq
 from sat_img_utils.pipelines.config import PatchIterPipelineConfig
 from sat_img_utils.pipelines.context import Context
-from sat_img_utils.core.transforms import sar_up_contrast_convert_to_uint8
+from sat_img_utils.core.transforms import sar_up_contrast_convert_uint8_pval_ctx, sar_log10
 
 from sat_img_utils.pipelines.patches import cut_patches, init_patch_config
 from sat_img_utils.geo.metadata import default_metadata_fn
+from sat_img_utils.geo.raster import choose_overview_level, get_overview
+from sat_img_utils.core.masks import get_valid_mask
+from sat_img_utils.configs.constants import LOG_EPS
 
 from pathlib import Path
 import logging
+import json
+from typing import Tuple
+
+def read_scale_factor_from_capella_metadata(path_to_metadata: str) -> float:
+    with open(path_to_metadata, 'r') as f:
+        metadata = json.load(f)
+    return metadata['collect']['image']['scale_factor']    
+
+def get_capella_percentiles(img_name: str) -> Tuple[float, float]:
+    if CapellaPolarization.VV.value in img_name or CapellaPolarization.HH.value in img_name:
+        return CapellaPercentValue.LO_HH_VV.value, CapellaPercentValue.HI_HH_VV.value
+    elif CapellaPolarization.VH.value in img_name or CapellaPolarization.HV.value in img_name:
+        return CapellaPercentValue.LO_HV_VH.value, CapellaPercentValue.HI_HV_VH.value
+    else:
+        raise ValueError(f"Unknown Capella polarization in image name: {img_name}")
 
 def save_capella_patch(patch, context: Context):
     """
@@ -38,28 +62,6 @@ def save_capella_patch(patch, context: Context):
         logging.error(f"Error saving patch {context.img_name}_patch_{context.patch.i}_{context.patch.j}.tif: {e}")
         return 0
 
-def capella_sar_transform_to_uint8(
-    img_uint16: np.ndarray,
-    ctx: Context,
-) -> np.ndarray:
-    img_name = ctx.img_name
-
-    if CapellaPolarization.VV.value in img_name or CapellaPolarization.HH.value in img_name:
-        low_percentile = CapellaPercentValue.LO_HH_VV.value
-        high_percentile = CapellaPercentValue.HI_HH_VV.value
-    elif CapellaPolarization.VH.value in img_name or CapellaPolarization.HV.value in img_name:
-        low_percentile = CapellaPercentValue.LO_HV_VH.value
-        high_percentile = CapellaPercentValue.HI_HV_VH.value
-    else:
-        raise ValueError(f"Unknown Capella polarization in image name: {img_name}")
-
-    return sar_up_contrast_convert_to_uint8(
-        img_uint16,
-        low_percentile=low_percentile,
-        high_percentile=high_percentile,
-        ctx=ctx,
-    )
-
 def init_capella_patch_config(
     patch_size: int,
     out_dir: str,
@@ -80,29 +82,39 @@ def init_capella_patch_config(
 def process_capella_sar_tile(
     ds: rasterio.io.DatasetReader,
     out_dir: str,
+    metadata_path: str,
     land_mask: np.ndarray = None,
     patch_size: int = 512,
     nodata: int = 0,
 ) -> list[dict]:
     
     img_name = Path(ds.name).stem
-
+    scale_factor = read_scale_factor_from_capella_metadata(metadata_path)
     cfg = init_capella_patch_config(
         patch_size=patch_size,
         out_dir=out_dir,
         img_name=img_name,
         nodata=nodata,
     )
+    overview_level = choose_overview_level(ds, CAPELLA_OVERVIEW_TARGET_WIDTH)
+    overview = get_overview(ds, CAPELLA_BANDS, overview_level)
+    valid = get_valid_mask(overview, nodata=nodata) & (overview > 0) & (overview > LOG_EPS)
+    overview_db = sar_log10(overview[valid], scale_factor)
+    low_percentile, high_percentile = get_capella_percentiles(img_name)
+    low_percentile_val, high_percentile_val = np.percentile(overview_db, (low_percentile, high_percentile))
 
     extra_ctx = CAPELLA_EXTRA_CTX.copy()
     extra_ctx["min_land_fraction_filter_random"]["land_mask"] = land_mask
+    extra_ctx["sar_up_contrast_convert_uint8_pval_ctx"]["scale_factor"] = scale_factor
+    extra_ctx["sar_up_contrast_convert_uint8_pval_ctx"]["low_percentile_val"] = low_percentile_val
+    extra_ctx["sar_up_contrast_convert_uint8_pval_ctx"]["high_percentile_val"] = high_percentile_val
 
     metadata = cut_patches(
         ds=ds,
         img_name=img_name,
         out_dir=out_dir,
         cfg=cfg,
-        transform=capella_sar_transform_to_uint8,
+        transform=sar_up_contrast_convert_uint8_pval_ctx,
         filters_before_transform=[
             min_land_fraction_filter_random,
             threshold_fraction_filter_eq,

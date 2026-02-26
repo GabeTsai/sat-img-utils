@@ -3,6 +3,7 @@ import numpy as np
 import psutil
 import os
 from pathlib import Path
+import json
 
 def get_sat_tile_memory(height, width, dtype: np.dtype, n_channels, pow = 3) -> float:
     """

@@ -2,42 +2,90 @@ from typing import Union
 import numpy as np
 from sat_img_utils.pipelines.context import Context
 from sat_img_utils.core.masks import get_valid_mask
+from sat_img_utils.configs.constants import LOG_EPS
 
-def sar_up_contrast_convert_to_uint8(
+def log10_eps(img: np.ndarray) -> np.ndarray:
+    return np.log10(np.maximum(img, LOG_EPS))
+
+def sar_log10(img: np.ndarray, scale_factor: float = 1.0) -> np.ndarray:
+    return 20.0 * log10_eps(img * scale_factor)
+
+def clip_percentile(img: np.ndarray, low_percentile_val: float, high_percentile_val: float) -> np.ndarray:
+    return np.clip(img, low_percentile_val, high_percentile_val)
+
+def normalize_percentile(img: np.ndarray, low_percentile_val: float, high_percentile_val: float) -> np.ndarray:
+    return (img - low_percentile_val) / (high_percentile_val - low_percentile_val) * 255
+
+def sar_up_contrast_convert_to_uint8_pval(
     img_uint16: np.ndarray,
-    low_percentile: float = 1.0,
-    high_percentile: float = 99.0,
-    *,
-    ctx: Context,
+    low_percentile_val: float,
+    high_percentile_val: float,
+    scale_factor: float = 1.0,
+    nodata: float = 0.0,
 ) -> np.ndarray:
     img = img_uint16.astype(np.float32)
+    valid = get_valid_mask(img, nodata=nodata) & (img > 0) & (img * scale_factor > LOG_EPS)
 
-    valid = get_valid_mask(img, nodata=ctx.nodata) & (img > 0)
     out = np.zeros(img.shape, dtype=np.uint8)
     if not np.any(valid):
         return out
 
-    img_db = 10.0 * np.log10(np.maximum(img, 1.0))
-    # pcts = np.percentile(img_db[valid], [0, 1, 5, 50, 95, 99, 100])
-    # print("db percentiles:", pcts)
-    # print("clip fraction at max:", np.mean(img_db[valid] >= db_max))
-    # print("clip fraction at min:", np.mean(img_db[valid] <= db_min))
-    # print("db min/max:", img_db[valid].min(), img_db[valid].max())
+    img_db = clip_percentile(
+        sar_log10(img[valid], scale_factor),
+        low_percentile_val,
+        high_percentile_val,
+    )
+    out[valid] = normalize_percentile(img_db, low_percentile_val, high_percentile_val)
+    return out
 
-    # db = np.clip(img_db, db_min, db_max)
-    # norm = (db - db_min) / max(db_max - db_min, 1e-6)
-    # norm = np.clip(norm, 0.0, 1.0)
+def sar_up_contrast_convert_to_uint8_p(
+    img_uint16: np.ndarray,
+    low_percentile: float = 1.0,
+    high_percentile: float = 99.0,
+    scale_factor: float = 1.0,
+    nodata: float = 0.0,
+) -> np.ndarray:
+    img = img_uint16.astype(np.float32)
 
-    # out[valid] = (norm[valid] * 255.0 + 0.5).astype(np.uint8)
-    # return out
+    valid = get_valid_mask(img, nodata=nodata) & (img > 0)
+    out = np.zeros(img.shape, dtype=np.uint8)
+    if not np.any(valid):
+        return out
+
+    img_db = sar_log10(img, scale_factor)
 
     vmin, vmax = np.percentile(img_db[valid], (low_percentile, high_percentile))
-    img_db = np.clip(img_db, vmin, vmax)
+    img_db = clip_percentile(img_db, vmin, vmax)
 
-    img_norm = np.zeros_like(img_db)
-    img_norm[valid] = (img_db[valid] - vmin) / (vmax - vmin) * 255
-    return img_norm.astype(np.uint8)
-    
+    img_db[valid] = normalize_percentile(img_db[valid], vmin, vmax)
+    return img_db.astype(np.uint8)
+
+def sar_up_contrast_convert_uint8_p_ctx(
+    img_uint16: np.ndarray,
+    ctx: Context,
+) -> np.ndarray:
+    p = ctx.sar_up_contrast_convert_uint8_p
+    return sar_up_contrast_convert_to_uint8_p(
+        img_uint16,
+        low_percentile=p.low_percentile,
+        high_percentile=p.high_percentile,
+        scale_factor=p.scale_factor,
+        nodata=ctx.nodata,
+    )
+
+def sar_up_contrast_convert_uint8_pval_ctx(
+    img_uint16: np.ndarray,
+    ctx: Context,
+) -> np.ndarray:
+    p = ctx.sar_up_contrast_convert_uint8_pval_ctx
+    return sar_up_contrast_convert_to_uint8_pval(
+        img_uint16,
+        low_percentile_val=p.low_percentile_val,
+        high_percentile_val=p.high_percentile_val,
+        scale_factor=p.scale_factor,
+        nodata=ctx.nodata,
+    )
+
 def pad_to_square(
     patch: np.ndarray,
     patch_size: int,

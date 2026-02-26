@@ -15,6 +15,7 @@ from shapely.ops import unary_union
 
 from sat_img_utils.configs import constants
 from sat_img_utils.core import get_memory_mb
+from typing import Union, Sequence
 
 def estimate_window_size_gb(window: Window, dtype_bytes: int = 2) -> float:
     """
@@ -29,6 +30,42 @@ def estimate_window_size_gb(window: Window, dtype_bytes: int = 2) -> float:
     """
     return (window.width * window.height * dtype_bytes) / (1024 * 1024 * 1024)
 
+def choose_overview_level(ds: rasterio.DatasetReader, target_w: int) -> int:
+    """
+    Return the index into ds.overviews(1) whose width is <= target_w,
+    or None if the full-resolution image is already within target_w.
+    """
+    base_width = ds.width
+    if base_width <= target_w:
+        return None
+    overviews = ds.overviews(1)
+    if not overviews:
+        return None
+    for i, factor in enumerate(overviews):
+        print(f"Factor: {factor}, Base width: {base_width}, Target width: {target_w}")
+        if base_width // factor <= target_w:
+            return i
+    return len(overviews) - 1
+
+def get_overview(
+    ds: rasterio.DatasetReader,
+    bands: Union[int, Sequence[int]],
+    overview_level: int = None,
+) -> np.ndarray:
+    """
+    Read a raster at the given overview level.
+    
+    If overview_level is None, returns the full-resolution data.
+    """
+    if overview_level is None:
+        return ds.read(bands)
+    ovr_factors = ds.overviews(1)
+    factor = ovr_factors[overview_level]
+    out_h = max(1, ds.height // factor)
+    out_w = max(1, ds.width // factor)
+    if isinstance(bands, int):
+        return ds.read(bands, out_shape=(out_h, out_w))
+    return ds.read(list(bands), out_shape=(len(bands), out_h, out_w))
 
 def read_raster_window_chunked(
     raster: rasterio.DatasetReader,

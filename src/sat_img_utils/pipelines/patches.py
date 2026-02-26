@@ -75,7 +75,6 @@ def cut_patches(
             ) 
             long_center, lat_center = window_center_longlat(ds, window)
             patch_extra_ctx = dict(extra_ctx or {})
-
             # General per-patch context
             patch_extra_ctx["patch"] = {
                 "patch_name": patch_name,

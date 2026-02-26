@@ -13,13 +13,19 @@ class CapellaPolarization(Enum):
 # these constants were set in an extremely hacky manner based on visual inspection
 # in the future, we may want to derive these more systematically
 class CapellaPercentValue(Enum):
-    LO_HH_VV = 0.0009
+    LO_HH_VV = 1
     LO_HV_VH = 32.5
-    HI_HH_VV = 99.99999
+    HI_HH_VV = 99.99
     HI_HV_VH = 75.0
 
 CAPELLA_BANDS = 1
+CAPELLA_OVERVIEW_TARGET_WIDTH = 4096
 CAPELLA_EXTRA_CTX = {
+    "sar_up_contrast_convert_uint8_pval_ctx": { 
+        "scale_factor": 1.0,
+        "low_percentile_val": 0.0, # must override these in config 
+        "high_percentile_val": 255.0,
+    },
     "threshold_fraction_filter_eq": { 
         "filter_value": 0.0,
         "nodata": None, 

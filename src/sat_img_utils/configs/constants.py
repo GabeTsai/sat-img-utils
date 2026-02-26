@@ -20,3 +20,5 @@ class CRS(Enum):
 
     def __int__(self):
         return int(self.value[self.value.find(":") + 1:])
+
+LOG_EPS = 1e-10
