@@ -6,15 +6,16 @@ set -euo pipefail
 # -------------------------
 # Parse arguments
 # -------------------------
-if [ "$#" -ne 3 ]; then
-  echo "Usage: $0 <resolution_meters> <input_dir> <output_dir>"
-  echo "Example: $0 5 aoi_parts_3857 landmask_tiles_5m"
+if [ "$#" -ne 4 ]; then
+  echo "Usage: $0 <resolution_meters> <input_dir> <output_dir> <osm_land_gpkg>"
+  echo "Example: $0 5 aoi_parts_3857 landmask_tiles_5m osm_land_3857.gpkg"
   exit 1
 fi
 
 RES="$1"
 IN_DIR="$2"
 OUT_DIR="$3"
+OSM_LAND="$4"
 
 if ! [[ "$RES" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
   echo "ERROR: resolution must be a positive number (meters)"
@@ -26,9 +27,15 @@ if [ ! -d "$IN_DIR" ]; then
   exit 1
 fi
 
+if [ ! -f "$OSM_LAND" ]; then
+  echo "ERROR: OSM land file '$OSM_LAND' does not exist"
+  exit 1
+fi
+
 echo "Rasterizing landmask at ${RES} m resolution"
 echo "  input dir:  $IN_DIR"
 echo "  output dir: $OUT_DIR"
+echo "  OSM land:   $OSM_LAND"
 
 # -------------------------
 # Output directory
@@ -48,7 +55,7 @@ for aoi in "${IN_DIR}"/aoi_*_3857.geojson; do
   ogr2ogr -overwrite -nlt PROMOTE_TO_MULTI \
     -clipsrc "$aoi" \
     "${OUT_DIR}/${idx}_land_clip.gpkg" \
-    osm_land_3857.gpkg
+    "$OSM_LAND"
 
   # Robust extent parse (keeps negatives)
   ext=$(ogrinfo -al -so "$aoi" \
