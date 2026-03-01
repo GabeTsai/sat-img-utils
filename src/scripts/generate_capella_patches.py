@@ -102,9 +102,16 @@ def process_sar(capella_dir,
             for dir_name in dir_names:
                 if 'geo' in dir_name.lower() and 'capella' in dir_name.lower():
                     sar_path = f'{capella_dir}/{dir_name}/{dir_name}.tif'
-                    logging.info(f'Processing SAR image: {sar_path}')
+                    extended_metadata_path = f'{capella_dir}/{dir_name}/{dir_name}_extended.json'
                     total_num_patches += process_sar_single_image(
-                        sar_path, ghsl, all_landmask, new_target_dir, patch_size, patch_metadata_path, crs=crs
+                            sar_path, 
+                            ghsl, 
+                            all_landmask, 
+                            new_target_dir, 
+                            patch_size, 
+                            patch_metadata_path, 
+                            crs,
+                            extended_metadata_path
                     )
         else:
             for year in ds_constants.CAPELLA_YEARS:
