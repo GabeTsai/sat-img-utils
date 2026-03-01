@@ -1,5 +1,6 @@
 from __future__ import annotations
-import gc 
+import gc
+import math
 import logging
 from pathlib import Path
 from typing import Callable, List, Optional, Dict, Any, Sequence, Tuple, Union
@@ -121,7 +122,7 @@ def cut_patches(
             kept += 1
             if cfg.gc_every and kept % cfg.gc_every == 0:
                 gc.collect()
-    logging.info(f"Finished {img_name}: kept {kept} patches")
+    logging.info(f"Finished {img_name}: kept {kept} out of {math.ceil(H / step) * math.ceil(W / step)} patches")
     return metadata
 
 def init_patch_config(

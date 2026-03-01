@@ -42,7 +42,6 @@ def choose_overview_level(ds: rasterio.DatasetReader, target_w: int) -> int:
     if not overviews:
         return None
     for i, factor in enumerate(overviews):
-        print(f"Factor: {factor}, Base width: {base_width}, Target width: {target_w}")
         if base_width // factor <= target_w:
             return i
     return len(overviews) - 1

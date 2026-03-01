@@ -14,11 +14,10 @@ from sat_img_utils.core.utils import(
 from sat_img_utils.geo.metadata import list_dict_to_parquet
 from sat_img_utils.datasets.ghsl import detect_buildings, detect_buildings_chunked
 from sat_img_utils.datasets.osm_land_poly import LandMaskVRT, osm_rasterize_sat_land_mask
-from sat_img_utils.datasets.capella import process_capella_sar_tile
+from sat_img_utils.datasets.capella import gen_capella_tile_patches
 from sat_img_utils.geo.raster import convert_bbox_crs, get_aoi_from_bboxes, get_gdf
 from sat_img_utils.configs import ds_constants
 from shapely.geometry import box
-from shapely.ops import unary_union
 
 from pathlib import Path
 import glob
@@ -27,7 +26,7 @@ import logging
 import time
 
 def process_sar_single_image(sar_path, ghsl, all_landmask, out_dir,
-                             patch_size, metadata_out_dir, crs):
+                             patch_size, metadata_out_dir, crs, extended_metadata_path):
     logging.info(f"\nProcessing {sar_path}")
     logging.info(f"Initial memory: {get_memory_mb():.0f}MB")
     start_img = time.time()
@@ -49,9 +48,10 @@ def process_sar_single_image(sar_path, ghsl, all_landmask, out_dir,
                 land_mask = all_landmask.get_mask_for_tile(sar)
                 end = time.time()
                 logging.info(f"OSM land rasterization time for {Path(sar_path).stem}: {end - start:.2f} seconds")
-                metadata = process_capella_sar_tile(
+                metadata = gen_capella_tile_patches(
                     ds=sar,
                     out_dir=out_dir,
+                    extended_metadata_path=extended_metadata_path,
                     land_mask=land_mask,
                     patch_size=patch_size,
                     nodata=0,
@@ -62,8 +62,8 @@ def process_sar_single_image(sar_path, ghsl, all_landmask, out_dir,
                     out_path=metadata_path,
                     crs=crs
                 )
-                num_patches = len(metadata)
-        logging.info(f"Total patches saved for {Path(sar_path).stem}: {num_patches}")
+
+                num_patches += len(metadata) if metadata is not None else 0
             
     sar.close()
     gc.collect()
@@ -116,8 +116,16 @@ def process_sar(capella_dir,
                 for dir_name in dir_names:
                     if 'geo' in dir_name.lower() and 'capella' in dir_name.lower():
                         sar_path = f'{year_dir}/{dir_name}/{dir_name}.tif'
+                        extended_metadata_path = f'{year_dir}/{dir_name}/{dir_name}_extended.json'
                         total_num_patches += process_sar_single_image(
-                            sar_path, ghsl, all_landmask, new_target_dir, patch_size, patch_metadata_path, crs=crs
+                            sar_path, 
+                            ghsl, 
+                            all_landmask, 
+                            new_target_dir, 
+                            patch_size, 
+                            patch_metadata_path, 
+                            crs,
+                            extended_metadata_path
                         )
 
     logging.info(f'Total patches saved: {total_num_patches}')

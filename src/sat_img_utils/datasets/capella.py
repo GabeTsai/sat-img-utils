@@ -7,7 +7,7 @@ from sat_img_utils.configs.ds_constants import (
     CapellaPercentValue, 
     CapellaPolarization, 
 )
-from sat_img_utils.core.filters import geq, min_land_fraction_filter_random, threshold_fraction_filter_eq
+from sat_img_utils.core.filters import min_land_fraction_filter_random, threshold_fraction_filter_eq
 from sat_img_utils.pipelines.config import PatchIterPipelineConfig
 from sat_img_utils.pipelines.context import Context
 from sat_img_utils.core.transforms import sar_up_contrast_convert_uint8_pval_ctx, sar_log10
@@ -22,6 +22,7 @@ from pathlib import Path
 import logging
 import json
 from typing import Tuple
+import time
 
 def read_scale_factor_from_capella_metadata(path_to_metadata: str) -> float:
     with open(path_to_metadata, 'r') as f:
@@ -79,30 +80,33 @@ def init_capella_patch_config(
         bands=CAPELLA_BANDS  # single band SAR
     )
 
-def process_capella_sar_tile(
+def gen_capella_tile_patches(
     ds: rasterio.io.DatasetReader,
     out_dir: str,
-    metadata_path: str,
+    extended_metadata_path: str,
     land_mask: np.ndarray = None,
     patch_size: int = 512,
     nodata: int = 0,
 ) -> list[dict]:
     
     img_name = Path(ds.name).stem
-    scale_factor = read_scale_factor_from_capella_metadata(metadata_path)
+    scale_factor = read_scale_factor_from_capella_metadata(extended_metadata_path)
     cfg = init_capella_patch_config(
         patch_size=patch_size,
         out_dir=out_dir,
         img_name=img_name,
         nodata=nodata,
     )
+    start = time.time()
     overview_level = choose_overview_level(ds, CAPELLA_OVERVIEW_TARGET_WIDTH)
     overview = get_overview(ds, CAPELLA_BANDS, overview_level)
     valid = get_valid_mask(overview, nodata=nodata) & (overview > 0) & (overview > LOG_EPS)
     overview_db = sar_log10(overview[valid], scale_factor)
     low_percentile, high_percentile = get_capella_percentiles(img_name)
     low_percentile_val, high_percentile_val = np.percentile(overview_db, (low_percentile, high_percentile))
-
+    end = time.time()
+    logging.info(f"Time taken to get overview: {end - start:.2f} seconds")
+    
     extra_ctx = CAPELLA_EXTRA_CTX.copy()
     extra_ctx["min_land_fraction_filter_random"]["land_mask"] = land_mask
     extra_ctx["sar_up_contrast_convert_uint8_pval_ctx"]["scale_factor"] = scale_factor
@@ -124,38 +128,4 @@ def process_capella_sar_tile(
         extra_ctx=extra_ctx,
     )
     return metadata    
-
-# def process_capella_sar_tile(
-#     ds: rasterio.io.DatasetReader,
-#     out_dir: str,
-#     patch_size: int = 512,
-#     nodata: int = 0,
-# ) -> list[dict]:
-    
-#     img_name = Path(ds.name).stem
-
-#     cfg = init_capella_patch_config(
-#         patch_size=patch_size,
-#         out_dir=out_dir,
-#         img_name=img_name,
-#         nodata=nodata,
-#     )
-
-#     extra_ctx = CAPELLA_EXTRA_CTX.copy()
-
-#     metadata = cut_patches(
-#         ds=ds,
-#         img_name=img_name,
-#         out_dir=out_dir,
-#         cfg=cfg,
-#         transform=capella_sar_transform_to_uint8,
-#         filters_before_transform=[
-#             geq,
-#             threshold_fraction_filter_eq,
-#         ],
-#         writer_fn=save_capella_patch,
-#         metadata_fn=default_metadata_fn,
-#         extra_ctx=extra_ctx,
-#     )
-#     return metadata    
 

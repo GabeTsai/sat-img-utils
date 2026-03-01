@@ -125,7 +125,7 @@ def get_land_fraction(
         j: int, 
         patch: np.ndarray, 
         patch_size: int, 
-        nodata: float = 0) -> float:
+        nodata: float = 255) -> float:
     """
     Calculate the fraction of land pixels in a patch using land mask from OSM. 
     
@@ -137,10 +137,10 @@ def get_land_fraction(
         j: Column index for patch extraction
         patch: Reference patch used to determine valid pixels
         patch_size: Size of the patch to extract
-        nodata: Value representing nodata pixels to exclude from calculation (default: 0)
+        nodata: Value representing nodata pixels to exclude from calculation 
     
     Returns:
-        float: Fraction of valid pixels that are land (0.0 to 1.0)
+        float: Fraction of valid pixels that are land (0.0 to 1.0) 
     """
     land_fraction = 1.0
     if land_mask is not None:
@@ -152,7 +152,7 @@ def get_land_fraction(
                 ((0, patch_size - land_patch.shape[0]),
                 (0, patch_size - land_patch.shape[1])),
                 mode="constant",
-                constant_values=0,
+                constant_values=255,
             )
         
         valid_land = (patch != nodata)
@@ -160,5 +160,5 @@ def get_land_fraction(
         if valid_count == 0:
             land_fraction = 0.0
         else:
-            land_fraction = (land_patch & valid_land).sum() / valid_count
+            land_fraction = ((land_patch == 1) & valid_land).sum() / valid_count
     return land_fraction
