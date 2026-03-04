@@ -5,15 +5,6 @@
 # Useful for large datasets, makes them compatible with 
 # objects like PyTorch's DataLoaders or ImageFolder
 
-#!/usr/bin/env bash
-#SBATCH --job-name=tif_to_png
-#SBATCH --nodes=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
-#SBATCH --time=12:00:00
-#SBATCH --output=logs/%x_%j.out
-#SBATCH --error=logs/%x_%j.err
-
 set -euo pipefail
 
 # Required positional args
