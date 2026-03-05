@@ -22,12 +22,15 @@ def compute_mean_std(
     input_dir: str,
     n: int,
     seed: int | None = None,
+    normalize: bool = False,
 ) -> dict[str, list[float]]:
     """
     Sample `n` .tif files from `input_dir` and compute per-channel mean and std,
     excluding zero-valued pixels.
 
     Returns a dict with keys "mean" and "std", each a list of floats (one per channel).
+    If `normalize=True`, pixel values are divided by 255 before accumulation so that
+    the resulting statistics are in [0, 1] — matching the scale of ImageNet mean/std.
     """
     tif_files = sorted(Path(input_dir).glob("*.tif"))
     if len(tif_files) == 0:
@@ -64,6 +67,9 @@ def compute_mean_std(
                 continue
             data = ds.read().astype(np.float64)  # shape: (C, H, W)
 
+        if normalize:
+            data = data / 255.0
+
         for c in range(num_channels):
             band = data[c]
             valid = band[band != 0]
@@ -94,6 +100,12 @@ if __name__ == "__main__":
     parser.add_argument("--input_dir", required=True, help="Folder containing .tif files.")
     parser.add_argument("--n", type=int, required=True, help="Number of images to sample.")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility.")
+    parser.add_argument(
+        "--normalize",
+        action="store_true",
+        help="Divide pixel values by 255 before computing statistics (use for uint8 images "
+             "to match ImageNet mean/std scale).",
+    )
     parser.add_argument("--log", action="store_true", help="Enable INFO logging.")
     args = parser.parse_args()
 
@@ -104,9 +116,11 @@ if __name__ == "__main__":
         input_dir=args.input_dir,
         n=args.n,
         seed=args.seed,
+        normalize=args.normalize,
     )
 
-    print(f"\nResults over {results['n_sampled']} sampled images (zero pixels excluded):")
+    scale_note = " [normalized by 255, range 0-1]" if args.normalize else " [raw pixel values]"
+    print(f"\nResults over {results['n_sampled']} sampled images (zero pixels excluded){scale_note}:")
     for c, (m, s, cnt) in enumerate(
         zip(results["mean"], results["std"], results["px_count"])
     ):
