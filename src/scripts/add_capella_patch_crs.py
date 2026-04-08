@@ -51,16 +51,6 @@ def add_patch_crs(patch_dir: str, capella_dirs: list[tuple[str, bool]], corrupt_
         out_path.write_text("\n".join(str(p) for p in corrupt_patches))
         logging.warning(f"{len(corrupt_patches)} corrupt patches written to {out_path} — these must be regenerated")
 
-
-def verify_patch_has_crs(patch_dir: str):
-    for patch_path in tqdm(Path(patch_dir).glob("*.tif"), desc="Verifying patches have crs"):
-        with rasterio.open(patch_path) as patch_ds:
-            if patch_ds.crs is None:
-                logging.warning(f"Patch {patch_path} does not have a crs")
-                continue
-            patch_ds.close()
-    return True
-
 def main():
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description="Add source crs of sar tile to corresponding patches")
@@ -73,7 +63,6 @@ def main():
     if not capella_dirs:
         parser.error("Provide at least one directory via --capella_dirs or --flat_capella_dirs")
     add_patch_crs(args.patch_dir, capella_dirs, corrupt_log_path=args.corrupt_log)
-    assert(verify_patch_has_crs(args.patch_dir))
 
 if __name__ == "__main__":
     main()
