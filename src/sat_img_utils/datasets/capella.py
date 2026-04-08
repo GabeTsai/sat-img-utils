@@ -17,17 +17,49 @@ from sat_img_utils.geo.metadata import default_metadata_fn
 from sat_img_utils.geo.raster import choose_overview_level, get_overview
 from sat_img_utils.core.masks import get_valid_mask
 from sat_img_utils.configs.constants import LOG_EPS
+from sat_img_utils.configs import ds_constants
 
 from pathlib import Path
 import logging
 import json
-from typing import Tuple
+import os
+from typing import Iterator, Tuple
 import time
+
+def _iter_capella_sar_paths_in_dir(parent: Path) -> Iterator[Tuple[Path, Path]]:
+    for dir_name in os.listdir(parent):
+        if "geo" in dir_name.lower() and "capella" in dir_name.lower():
+            base = parent / dir_name
+            yield base / f"{dir_name}.tif", base / f"{dir_name}_extended.json"
+
+
+def iter_capella_sar_paths(
+    capella_dir: str,
+    flat: bool = False,
+) -> Iterator[Tuple[Path, Path]]:
+    """
+    Yield (sar_path, extended_metadata_path) for every Capella GEO image found
+    under capella_dir.
+
+    Supported directory layouts:
+      flat=True: capella_dir/<DIR_NAME>/<DIR_NAME>.tif
+      flat=False: capella_dir/<YEAR>/<DIR_NAME>/<DIR_NAME>.tif
+    """
+    root = Path(capella_dir)
+    if flat:
+        yield from _iter_capella_sar_paths_in_dir(root)
+    else:
+        for year in ds_constants.CAPELLA_YEARS:
+            year_dir = root / str(year)
+            if year_dir.exists():
+                yield from _iter_capella_sar_paths_in_dir(year_dir)
+
 
 def read_scale_factor_from_capella_metadata(path_to_metadata: str) -> float:
     with open(path_to_metadata, 'r') as f:
         metadata = json.load(f)
     return metadata['collect']['image']['scale_factor']    
+
 
 def get_capella_percentiles(img_name: str) -> Tuple[float, float]:
     if CapellaPolarization.VV.value in img_name or CapellaPolarization.HH.value in img_name:
@@ -36,6 +68,7 @@ def get_capella_percentiles(img_name: str) -> Tuple[float, float]:
         return CapellaPercentValue.LO_HV_VH.value, CapellaPercentValue.HI_HV_VH.value
     else:
         raise ValueError(f"Unknown Capella polarization in image name: {img_name}")
+
 
 def save_capella_patch(patch, context: Context):
     """
@@ -52,7 +85,7 @@ def save_capella_patch(patch, context: Context):
             'width': context.patch.width,
             'count': 1,
             'dtype': 'uint8',
-            'crs': context.crs,
+            'crs': context.patch.src_crs,
             'transform': context.patch.transform,
             'nodata': context.nodata 
         }
@@ -63,22 +96,27 @@ def save_capella_patch(patch, context: Context):
         logging.error(f"Error saving patch {context.img_name}_patch_{context.patch.i}_{context.patch.j}.tif: {e}")
         return 0
 
+
 def init_capella_patch_config(
     patch_size: int,
     out_dir: str,
     img_name: str,
     nodata: int = 0,
+    metadata_crs: int = 4326,
 ) -> PatchIterPipelineConfig:
     return init_patch_config(
         patch_size=patch_size,
         patch_dtype=np.uint8,
         out_dir=out_dir,
         img_name=img_name,
+        metadata_crs=metadata_crs,
         nodata=nodata,
         pad_value=nodata,
         gc_every=1000,
         bands=CAPELLA_BANDS  # single band SAR
+
     )
+
 
 def gen_capella_tile_patches(
     ds: rasterio.io.DatasetReader,
@@ -87,6 +125,7 @@ def gen_capella_tile_patches(
     land_mask: np.ndarray = None,
     patch_size: int = 512,
     nodata: int = 0,
+    metadata_crs: int = 4326,
 ) -> list[dict]:
     
     img_name = Path(ds.name).stem
@@ -96,6 +135,7 @@ def gen_capella_tile_patches(
         out_dir=out_dir,
         img_name=img_name,
         nodata=nodata,
+        metadata_crs=metadata_crs,
     )
     start = time.time()
     overview_level = choose_overview_level(ds, CAPELLA_OVERVIEW_TARGET_WIDTH)

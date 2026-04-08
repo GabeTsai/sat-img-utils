@@ -15,7 +15,7 @@ def default_metadata_fn(ctx: Context):
         "img_name": ctx.img_name,
         "patch_name": ctx.patch.patch_name,
         "geometry": Point(ctx.patch.long_center, ctx.patch.lat_center), 
-        "crs": f"EPSG:{ctx.crs}",
+        "crs": f"EPSG:{ctx.metadata_crs}",
     } 
 
 def list_dict_to_parquet(

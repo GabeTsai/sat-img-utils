@@ -1,6 +1,5 @@
-import ee
-
 def authenticate(project: str):
+    import ee
     ee.Authenticate()
     ee.Initialize(project=project)
 

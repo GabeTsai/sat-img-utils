@@ -14,7 +14,7 @@ from sat_img_utils.core.utils import(
 from sat_img_utils.geo.metadata import list_dict_to_parquet
 from sat_img_utils.datasets.ghsl import detect_buildings, detect_buildings_chunked
 from sat_img_utils.datasets.osm_land_poly import LandMaskVRT, osm_rasterize_sat_land_mask
-from sat_img_utils.datasets.capella import gen_capella_tile_patches
+from sat_img_utils.datasets.capella import gen_capella_tile_patches, iter_capella_sar_paths
 from sat_img_utils.geo.raster import convert_bbox_crs, get_aoi_from_bboxes, get_gdf
 from sat_img_utils.configs import ds_constants
 from shapely.geometry import box
@@ -72,6 +72,7 @@ def process_sar_single_image(sar_path, ghsl, all_landmask, out_dir,
     logging.info(f"Processing time for {Path(sar_path).stem}: {end_img - start_img:.2f} seconds")
     return num_patches
 
+
 def process_sar(capella_dir, 
                 target_dir, 
                 ghsl_path, 
@@ -89,62 +90,37 @@ def process_sar(capella_dir,
     make_dirs_if_not_exists(target_dir)
     new_target_dir = f'{target_dir}/sar_patches'
     make_dirs_if_not_exists(new_target_dir)
-    patch_metadata_path = f'{target_dir}/patch_metadata'
-    make_dirs_if_not_exists(patch_metadata_path)
+    patch_metadata_out_dir = f'{target_dir}/patch_metadata'
+    make_dirs_if_not_exists(patch_metadata_out_dir)
 
     all_landmask = LandMaskVRT(osm_land_vrt_path)
 
     total_num_patches = 0
     logging.info(f'Processing SAR images in {capella_dir}')
     with rasterio.open(ghsl_path) as ghsl:
-        if flat:
-            dir_names = os.listdir(capella_dir)
-            for dir_name in dir_names:
-                if 'geo' in dir_name.lower() and 'capella' in dir_name.lower():
-                    sar_path = f'{capella_dir}/{dir_name}/{dir_name}.tif'
-                    extended_metadata_path = f'{capella_dir}/{dir_name}/{dir_name}_extended.json'
-                    total_num_patches += process_sar_single_image(
-                            sar_path, 
-                            ghsl, 
-                            all_landmask, 
-                            new_target_dir, 
-                            patch_size, 
-                            patch_metadata_path, 
-                            crs,
-                            extended_metadata_path
-                    )
-        else:
-            for year in ds_constants.CAPELLA_YEARS:
-                year_dir = f'{capella_dir}/{year}'
-                logging.info(f'Processing year directory: {year_dir}')
-                if not os.path.exists(year_dir):
-                    continue
-                dir_names = os.listdir(year_dir)
-                for dir_name in dir_names:
-                    if 'geo' in dir_name.lower() and 'capella' in dir_name.lower():
-                        sar_path = f'{year_dir}/{dir_name}/{dir_name}.tif'
-                        extended_metadata_path = f'{year_dir}/{dir_name}/{dir_name}_extended.json'
-                        total_num_patches += process_sar_single_image(
-                            sar_path, 
-                            ghsl, 
-                            all_landmask, 
-                            new_target_dir, 
-                            patch_size, 
-                            patch_metadata_path, 
-                            crs,
-                            extended_metadata_path
-                        )
+        for sar_path, extended_metadata_path in iter_capella_sar_paths(capella_dir, flat=flat):
+            total_num_patches += process_sar_single_image(
+                sar_path,
+                ghsl,
+                all_landmask,
+                new_target_dir,
+                patch_size,
+                patch_metadata_out_dir,
+                crs,
+                extended_metadata_path,
+            )
 
     logging.info(f'Total patches saved: {total_num_patches}')
 
-    files = glob.glob(f"{patch_metadata_path}/patch_metadata_*.parquet")
+    files = glob.glob(f"{patch_metadata_out_dir}/patch_metadata_*.parquet")
     dfs = [gpd.read_parquet(f) for f in files]
     if len(dfs) == 0:
         logging.info("No patch metadata files found to merge.")
     else:
         merged = gpd.GeoDataFrame(pd.concat(dfs, ignore_index=True), crs=f"EPSG:{crs}")
-        merged.to_parquet(f"{patch_metadata_path}/patch_metadata_all.parquet", index=False)
-        logging.info(f'Merged metadata saved to {patch_metadata_path}/patch_metadata_all.parquet')
+        merged.to_parquet(f"{patch_metadata_out_dir}/patch_metadata_all.parquet", index=False)
+        logging.info(f'Merged metadata saved to {patch_metadata_out_dir}/patch_metadata_all.parquet')
+
 
 def get_capella_aoi(capella_dir, out_aoi_path,
                     flat=False) -> gpd.GeoSeries:
@@ -153,26 +129,10 @@ def get_capella_aoi(capella_dir, out_aoi_path,
     """
     make_dirs_if_not_exists(os.path.dirname(out_aoi_path))
     bboxes = []
-    if flat:
-        dir_names = os.listdir(capella_dir)
-        for dir_name in dir_names:
-            if 'geo' in dir_name.lower() and 'capella' in dir_name.lower():
-                sar_path = f'{capella_dir}/{dir_name}/{dir_name}.tif'
-                logging.info(f'Processing SAR image: {sar_path}')
-                with rasterio.open(sar_path) as sar:
-                    bboxes.append(convert_bbox_crs(box(*sar.bounds), sar.crs.to_epsg(), ds_constants.CAPELLA_DEFAULT_OUT_CRS))
-    else:
-        for year in ds_constants.CAPELLA_YEARS:
-            year_dir = f'{capella_dir}/{year}'
-            logging.info(f'Processing year directory: {year_dir}')
-            if not os.path.exists(year_dir):
-                continue
-            dir_names = os.listdir(year_dir)
-            for dir_name in dir_names:
-                if 'geo' in dir_name.lower() and 'capella' in dir_name.lower():
-                    sar_path = f'{year_dir}/{dir_name}/{dir_name}.tif'
-                    with rasterio.open(sar_path) as sar:
-                        bboxes.append(convert_bbox_crs(box(*sar.bounds), sar.crs.to_epsg(), ds_constants.CAPELLA_DEFAULT_OUT_CRS))
+    for sar_path, _ in iter_capella_sar_paths(capella_dir, flat=flat):
+        logging.info(f'Processing SAR image: {sar_path}')
+        with rasterio.open(sar_path) as sar:
+            bboxes.append(convert_bbox_crs(box(*sar.bounds), sar.crs.to_epsg(), ds_constants.CAPELLA_DEFAULT_OUT_CRS))
     
     aoi = get_aoi_from_bboxes(bboxes, reproj_crs=ds_constants.CAPELLA_DEFAULT_OUT_CRS)
     logging.info(f"AOI CRS: {aoi.crs}")
@@ -181,6 +141,7 @@ def get_capella_aoi(capella_dir, out_aoi_path,
         aoi.to_file(out_aoi_path, driver="GeoJSON")
         logging.info(f"AOI saved to {out_aoi_path}")
     return aoi
+
 
 if __name__ == "__main__":
     """

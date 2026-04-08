@@ -9,12 +9,14 @@ description = "Satellite image utilities for processing and analysis"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "earthengine-api",
     "rasterio",
     "numpy",
     "geopandas",
     "shapely",
     "pyproj",
     "psutil",
+    "tqdm"
 ]
 
 [tool.setuptools.packages.find]

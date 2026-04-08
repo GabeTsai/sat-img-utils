@@ -85,9 +85,9 @@ def cut_patches(
                 "width": cfg.patch_size,
                 "window": window,
                 "transform": ds.window_transform(window),
+                "src_crs": ds.crs,
                 "long_center": long_center,
                 "lat_center": lat_center,
-                "crs": cfg.crs,
             }
 
             context = Context(cfg=cfg, extra=patch_extra_ctx)
@@ -130,7 +130,7 @@ def init_patch_config(
     patch_dtype: np.dtype,
     out_dir: Union[str, Path],
     img_name: str,
-    crs: Optional[Union[str, int]] = None,
+    metadata_crs: Optional[Union[str, int]] = None,
     nodata: Optional[Union[int, float]] = None,
     pad_value: Optional[Union[int, float]] = 0,
     step: Optional[int] = None,
@@ -145,7 +145,7 @@ def init_patch_config(
         patch_dtype=patch_dtype,
         out_dir=out_dir,
         img_name=img_name,
-        crs=crs,
+        metadata_crs=metadata_crs,
         nodata=nodata,
         pad_value=pad_value,
         step=step,
