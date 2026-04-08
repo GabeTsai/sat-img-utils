@@ -6,8 +6,6 @@ from sat_img_utils.datasets.capella import iter_capella_sar_paths
 
 import argparse
 from tqdm import tqdm
-
-
 def build_tile_path_map(capella_dirs: list[tuple[str, bool]]) -> dict[str, Path]:
     """
     Map tile stem to tile path across all provided Capella source directories.
@@ -27,6 +25,7 @@ def add_patch_crs(patch_dir: str, capella_dirs: list[tuple[str, bool]]):
     Patches whose source tile is not found across any of capella_dirs are skipped cleanly.
     """
     tile_path_map = build_tile_path_map(capella_dirs)
+    sar_tile_crs_cache: dict[Path, rasterio.crs.CRS] = {}
     logging.info(f"Built tile path map with {len(tile_path_map)} tiles from {len(capella_dirs)} source directories")
     for patch_path in tqdm(list(Path(patch_dir).glob("*.tif")), desc="Adding source crs to patches"):
         patch_sar_tile = patch_path.stem.split("_patch_")[0]
@@ -34,10 +33,11 @@ def add_patch_crs(patch_dir: str, capella_dirs: list[tuple[str, bool]]):
         if sar_tile_path is None:
             logging.debug(f"Skipping {patch_path.name}: source tile '{patch_sar_tile}' not found in any source directory")
             continue
-        with rasterio.open(sar_tile_path) as sar_tile_ds:
-            sar_tile_crs = sar_tile_ds.crs
+        if sar_tile_path not in sar_tile_crs_cache:
+            with rasterio.open(sar_tile_path) as sar_tile_ds:
+                sar_tile_crs_cache[sar_tile_path] = sar_tile_ds.crs
         with rasterio.open(patch_path, "r+") as patch_ds:
-            patch_ds.crs = sar_tile_crs
+            patch_ds.crs = sar_tile_crs_cache[sar_tile_path]
 
 
 def verify_patch_has_crs(patch_dir: str):
